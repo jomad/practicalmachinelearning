@@ -19,6 +19,8 @@ When you click the **Knit** button a document will be generated that includes bo
 library(caret)
 library(rattle)
 
+# Loading data
+
 trainingData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
 dim(trainingData)
 
