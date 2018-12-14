@@ -9,17 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# Data Exploration
 
 ```{r}
 library(caret)
 library(rattle)
-
-# Loading data
 
 trainingData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
 dim(trainingData)
@@ -33,13 +27,132 @@ str(testingData)
 
 
 ```
+# Untidying the data
 
-## Including Plots
+Training data set is made of 19622 observations on 160 columns. However, not all variables can be used as predictors since most of them have NA values or missing values while some are unrelated to the variable that will be predicted. Unnecessary variables will be removed both in the training ang test data sets.
 
-You can also embed plots, for example:
+```{r}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+indColToRemove <- which(colSums(is.na(trainingData) |trainingData=="")>0.9*dim(trainingData)[1]) 
+trainingDataClean <- trainingData[,-indColToRemove]
+trainingDataClean <- trainingDataClean[,-c(1:7)]
+dim(trainingDataClean)
+
+
+indColToRemove <- which(colSums(is.na(testingData) |testingData=="")>0.9*dim(testingData)[1]) 
+testingDataClean <- testingData[,-indColToRemove]
+testingDataClean <- testingDataClean[,-1]
+dim(testingDataClean)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Training data set partitioning.
+
+```{r}
+set.seed(12345)
+
+inTrain1 <- createDataPartition(trainingDataClean$classe, p=0.75, list=FALSE)
+Train1 <- trainingDataClean[inTrain1,]
+Test1 <- trainingDataClean[-inTrain1,]
+
+dim(Train1)
+dim(Test1)
+```
+
+
+# Prediction using decision tree.
+
+```{r}
+
+set.seed(12345)
+trControl <- trainControl(method="cv", number=5)
+model_DT <- train(classe~., data=Train1, method="rpart", trControl=trControl)
+
+#print(model_CT)
+fancyRpartPlot(model_DT$finalModel)
+
+trainpred <- predict(model_DT,newdata=Test1)
+
+confusionMat <- confusionMatrix(Test1$classe,trainpred)
+
+confusionMat
+
+confusionMat$overall[1]
+
+```
+
+The accuracy is very low at 0.5416 which sets the out of bag sample error of 0.4584. 
+
+# Prediction using Random Forests
+
+```{r}
+
+set.seed(12345)
+model_RF <- train(classe~., data=Train1, method="rf", trControl=trControl, verbose=FALSE)
+
+print(model_RF)
+```
+
+```{r}
+prediction <- predict(model_RF,newdata=Test1)
+
+confusionMatRF <- confusionMatrix(Test1$classe,prediction)
+
+# display confusion matrix and model accuracy
+confusionMatRF$table
+
+```
+
+```{r}
+confusionMatRF$overall[1]
+```
+
+The accuracy of the model using random forests is very high (0.9935). Therefore the out of bag sample error is neglible or nearly 0.
+
+```{r}
+names(model_RF$finalModel)
+
+```
+
+# Prediction using Generalized Boosted Regression Models
+
+```{r}
+set.seed(12345)
+
+model_GBM <- train(classe~., data=Train1, method="gbm", trControl=trControl, verbose=FALSE)
+
+print(model_GBM)
+
+```
+```{r}
+plot(model_GBM)
+```
+
+```{r}
+trainpred <- predict(model_GBM,newdata=Test1)
+
+confMatGBM <- confusionMatrix(Test1$classe,trainpred)
+confMatGBM$table
+```
+
+
+```{r}
+confMatGBM$overall[1]
+
+```
+
+Accuracy rate using generalized boosted regression model is 0.9613. Its out of the bag sample error is 0.039.
+
+
+
+# Conclusion
+
+Based on the accuracy, the best model is the random forest model (accuracy = 0.99). Using this model to predict values of classe for the test data set shows the following result:
+
+```{r}
+QuizTestPrediction <- predict(model_RF, newdata = testingDataClean)
+
+QuizTestPrediction
+```
+
+
